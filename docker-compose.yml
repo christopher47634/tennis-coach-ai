@@ -1,0 +1,8 @@
+services:
+  tennis-coach:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/outputs:/app/data/outputs
+    restart: unless-stopped

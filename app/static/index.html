@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网球发球教练 AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <h1>🎾 网球发球教练 AI</h1>
+      <p class="subtitle">上传发球视频，获得专业生物力学分析与个性化教练建议</p>
+    </section>
+
+    <!-- 上传区域 -->
+    <section id="upload-section" class="section">
+      <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-inner">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>拖拽视频文件到此处</p>
+          <span class="drop-zone-hint">或者</span>
+          <label class="file-label">
+            选择文件
+            <input type="file" id="video-input" accept="video/mp4,video/*" hidden>
+          </label>
+          <p id="file-name" class="file-name"></p>
+        </div>
+      </div>
+      <button id="analyze-btn" class="btn-primary" disabled>开始分析</button>
+    </section>
+
+    <!-- 加载中 -->
+    <section id="loading-section" class="section hidden">
+      <div class="spinner"></div>
+      <p class="loading-text">正在分析发球动作…</p>
+      <p class="loading-sub">AI 正在逐帧提取骨骼姿态并计算关节角度，请耐心等待</p>
+    </section>
+
+    <!-- 错误 -->
+    <section id="error-section" class="section hidden">
+      <div class="error-card">
+        <p id="error-message"></p>
+        <button id="error-retry-btn" class="btn-secondary">重新尝试</button>
+      </div>
+    </section>
+
+    <!-- 分析结果 -->
+    <section id="results-section" class="section hidden">
+      <!-- 总评分 -->
+      <div class="card score-card">
+        <h2>总体评分</h2>
+        <div class="score-ring-wrapper">
+          <svg class="score-ring" viewBox="0 0 120 120">
+            <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+            <circle id="score-ring-fill" class="score-ring-fill" cx="60" cy="60" r="52" />
+          </svg>
+          <span id="overall-score" class="score-value">0</span>
+        </div>
+        <p id="score-rating" class="score-rating"></p>
+      </div>
+
+      <!-- 阶段时间轴 -->
+      <div class="card timeline-card">
+        <h2>发球阶段时间轴</h2>
+        <div id="phase-timeline" class="phase-timeline"></div>
+        <div id="phase-labels" class="phase-labels"></div>
+      </div>
+
+      <!-- 双屏视频对比区 -->
+      <div class="card dual-screen-card">
+        <h2>动作对比分析</h2>
+        <div class="dual-screen">
+          <!-- 左：用户视频 + 骨架叠加 -->
+          <div class="dual-panel">
+            <div class="panel-label">你的发球</div>
+            <div class="panel-viewport">
+              <video id="overlay-video" controls class="overlay-video"></video>
+            </div>
+          </div>
+          <!-- 右：参考骨架 Canvas -->
+          <div class="dual-panel">
+            <div class="panel-label">职业标准</div>
+            <div class="panel-viewport">
+              <canvas id="ref-canvas" class="ref-canvas"></canvas>
+              <div id="ref-phase-badge" class="ref-phase-badge"></div>
+            </div>
+          </div>
+        </div>
+        <!-- 统一时间轴 -->
+        <div class="sync-timeline-wrap">
+          <div id="sync-timeline" class="sync-timeline">
+            <div id="sync-progress" class="sync-progress"></div>
+            <div id="sync-thumb" class="sync-thumb"></div>
+          </div>
+          <div class="sync-time">
+            <span id="sync-current">0:00</span>
+            <span id="sync-duration">0:00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 阶段详情 -->
+      <div class="card detail-card">
+        <h2 id="detail-title">阶段详情</h2>
+        <div id="detail-angles" class="detail-angles"></div>
+        <div id="detail-commentary" class="detail-commentary"></div>
+      </div>
+
+      <!-- 角度对比表 -->
+      <div class="card angle-compare-card">
+        <h2>关节角度对比</h2>
+        <div class="angle-compare-table-wrap">
+          <table id="angle-compare-table" class="angle-compare-table">
+            <thead>
+              <tr>
+                <th>关节</th>
+                <th>你的角度</th>
+                <th>职业标准</th>
+                <th>偏差</th>
+                <th>评级</th>
+              </tr>
+            </thead>
+            <tbody id="angle-compare-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 返回 -->
+      <button id="reset-btn" class="btn-secondary">分析另一段视频</button>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
