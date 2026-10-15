@@ -1,0 +1,4 @@
+# Lightweight deps for lint + tests (no mediapipe / opencv / fastapi needed)
+numpy
+pytest
+flake8

@@ -8,11 +8,10 @@ Endpoints:
 
 import os
 import sys
-import shutil
 import tempfile
 import traceback
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -20,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pipeline import load_baselines, extract_and_analyze
-from coach import generate_advice
+from coach import generate_advice  # noqa: F401
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

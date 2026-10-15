@@ -14,13 +14,12 @@ v2: Implements 5-phase serve analysis engine:
 import os
 import json
 import uuid
-import tempfile
-import cv2
 import numpy as np
-import mediapipe as mp
 
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
+from settings import CONFIG
+
+# cv2 / mediapipe are imported lazily inside the video functions so that the
+# pure scoring/phase code (and its tests) only needs numpy.
 
 # MediaPipe landmark indices
 L_SHOULDER, R_SHOULDER = 11, 12
@@ -52,12 +51,13 @@ DEFAULT_BASELINES = {
 }
 
 # ── Phase definitions ──────────────────────────────────────────
+_PHASE_WEIGHTS = CONFIG["phases"]["weights"]
 PHASE_DEFS = [
-    {"name": "准备期", "name_en": "Preparation", "weight": 0.10},
-    {"name": "蓄力期", "name_en": "Loading/Trophy", "weight": 0.20},
-    {"name": "加速期", "name_en": "Acceleration", "weight": 0.25},
-    {"name": "击球期", "name_en": "Contact", "weight": 0.30},
-    {"name": "随挥期", "name_en": "Follow-through", "weight": 0.15},
+    {"name": "准备期", "name_en": "Preparation", "weight": _PHASE_WEIGHTS[0]},
+    {"name": "蓄力期", "name_en": "Loading/Trophy", "weight": _PHASE_WEIGHTS[1]},
+    {"name": "加速期", "name_en": "Acceleration", "weight": _PHASE_WEIGHTS[2]},
+    {"name": "击球期", "name_en": "Contact", "weight": _PHASE_WEIGHTS[3]},
+    {"name": "随挥期", "name_en": "Follow-through", "weight": _PHASE_WEIGHTS[4]},
 ]
 
 # Phase-specific key angles and their Chinese names
@@ -150,15 +150,26 @@ def compute_frame_angles(lm):
     return angles
 
 
-def score_angles(angles: dict, baselines: dict) -> dict:
+def rate_severity(severity: float, cfg: dict | None = None) -> str:
+    """Map a 0-1 severity to good / moderate / needs_work."""
+    sc = (cfg or CONFIG)["scoring"]
+    if severity < sc["good_below"]:
+        return 'good'
+    if severity < sc["moderate_below"]:
+        return 'moderate'
+    return 'needs_work'
+
+
+def score_angles(angles: dict, baselines: dict, cfg: dict | None = None) -> dict:
     """Score each angle against expert baselines."""
+    mult = (cfg or CONFIG)["scoring"]["severity_std_multiplier"]
     scores = {}
     for name, val in angles.items():
         if name in baselines:
             expert = baselines[name]
             deviation = abs(val - expert['mean'])
-            severity = min(deviation / (2 * expert['std']), 1.0)
-            rating = 'good' if severity < 0.3 else ('moderate' if severity < 0.6 else 'needs_work')
+            severity = min(deviation / (mult * expert['std']), 1.0)
+            rating = rate_severity(severity, cfg)
             scores[name] = {
                 'value': round(val, 1),
                 'expert_mean': expert['mean'],
@@ -443,17 +454,18 @@ _RATING_COLORS_HEX = {
 }
 
 
-def _build_angle_comparison(user_angles: dict, baselines: dict) -> dict:
+def _build_angle_comparison(user_angles: dict, baselines: dict, cfg: dict | None = None) -> dict:
     """Compare user angles against expert baselines.
 
     Returns dict keyed by joint name, each containing:
         user_value, expert_value, deviation, rating, color
 
-    Rating thresholds (deviation as fraction of 2*std):
+    Rating thresholds (deviation as fraction of 2*std, see config/default.toml):
         good:       < 0.30  (green)
         moderate:   0.30 – 0.60  (yellow)
         needs_work: > 0.60  (red)
     """
+    mult = (cfg or CONFIG)["scoring"]["severity_std_multiplier"]
     comparison = {}
     for joint_name, bl in baselines.items():
         user_val = user_angles.get(joint_name)
@@ -461,14 +473,8 @@ def _build_angle_comparison(user_angles: dict, baselines: dict) -> dict:
             continue
         expert_val = bl['mean']
         deviation = abs(user_val - expert_val)
-        severity = min(deviation / (2 * bl['std']), 1.0) if bl.get('std') else 0.0
-
-        if severity < 0.30:
-            rating = 'good'
-        elif severity < 0.60:
-            rating = 'moderate'
-        else:
-            rating = 'needs_work'
+        severity = min(deviation / (mult * bl['std']), 1.0) if bl.get('std') else 0.0
+        rating = rate_severity(severity, cfg)
 
         comparison[joint_name] = {
             'user_value': round(float(user_val), 1),
@@ -520,7 +526,8 @@ def _smooth(arr, window=5):
     return np.convolve(arr, kernel, mode='same')
 
 
-def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) -> list:
+def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int,
+                   cfg: dict | None = None) -> list:
     """Detect 5 serve phases using right wrist y-coordinate + knee angles.
 
     In MediaPipe coordinates, y=0 is top of frame, y=1 is bottom.
@@ -536,18 +543,19 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
 
     Returns list of (start_frame, end_frame) tuples for each phase.
     """
+    dc = (cfg or CONFIG)["detection"]
     n = len(wrist_y)
-    if n < 10:
+    if n < dc["min_frames_for_phases"]:
         chunk = max(1, n // 5)
         return [(i * chunk, min((i + 1) * chunk, n)) for i in range(5)]
 
     # Smooth the wrist y signal
-    wy = _smooth(wrist_y, window=max(5, n // 20))
+    wy = _smooth(wrist_y, window=max(dc["smooth_min_window"], n // dc["smooth_divisor"]))
 
     # ── Step 1: Find the dominant serve action ──
     # The video may contain multiple serves. Find the one with the deepest
     # wrist rise (largest drop in y value from preceding local max to local min).
-    search_win = max(15, n // 30)
+    search_win = max(dc["peak_search_min"], n // dc["peak_search_divisor"])
 
     # Find candidate peaks: local minima of y (wrist at highest point)
     candidate_peaks = []
@@ -621,11 +629,11 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
     # ── Step 3: Find biomechanical landmarks within the serve window ──
 
     # A. Loading start: where knee bending accelerates (knee angle drops)
-    loading_start = serve_start + serve_duration // 4  # default: 25% into serve
+    loading_start = serve_start + serve_duration // dc["loading_default_divisor"]  # default: 25% into serve
     if knee_angles:
         ka_window = []
         for i in range(serve_start, min(peak_idx + 1, len(knee_angles))):
-            ka_window.append((i, knee_angles[i] if knee_angles[i] is not None else 160.0))
+            ka_window.append((i, knee_angles[i] if knee_angles[i] is not None else dc["knee_missing_default"]))
         if len(ka_window) > 5:
             ka_vals = np.array([k[1] for k in ka_window])
             ka_smooth = _smooth(ka_vals, window=max(3, len(ka_vals) // 8))
@@ -633,8 +641,8 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
             start_knee = ka_smooth[0]
             min_knee_val = np.min(ka_smooth)
             knee_drop = start_knee - min_knee_val
-            if knee_drop > 5:  # meaningful bend
-                threshold_knee = start_knee - knee_drop * 0.3
+            if knee_drop > dc["knee_min_drop"]:  # meaningful bend
+                threshold_knee = start_knee - knee_drop * dc["knee_loading_fraction"]
                 for i in range(len(ka_smooth)):
                     if ka_smooth[i] < threshold_knee:
                         loading_start = serve_start + i
@@ -660,7 +668,7 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
         # Contact is where the rate of descent starts to slow
         contact_offset = max_increase_idx
         if max_increase_idx + 1 < len(deriv):
-            threshold_deriv = deriv[max_increase_idx] * 0.35
+            threshold_deriv = deriv[max_increase_idx] * dc["contact_decel_fraction"]
             for j in range(max_increase_idx, len(deriv)):
                 if deriv[j] < threshold_deriv:
                     contact_offset = j
@@ -677,7 +685,7 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
     # Phase 5: Follow-through = [after contact, serve_end]
 
     accel_duration = contact_idx - peak_idx
-    contact_half_width = max(3, accel_duration // 5)
+    contact_half_width = max(dc["contact_half_width_min"], accel_duration // dc["contact_half_width_divisor"])
 
     accel_end = max(peak_idx + 3, contact_idx - contact_half_width)
     contact_end = min(contact_idx + contact_half_width, serve_end - 5)
@@ -685,7 +693,7 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
         contact_end = accel_end + max(3, accel_duration // 4)
 
     # If follow-through is too short (< 5% of serve), extend it
-    if serve_end - contact_end < serve_duration * 0.05:
+    if serve_end - contact_end < serve_duration * dc["followthrough_min_fraction"]:
         contact_end = max(accel_end + 3, serve_end - max(5, serve_duration // 8))
 
     phases = [
@@ -706,7 +714,7 @@ def _detect_phases(wrist_y: np.ndarray, knee_angles: list, total_frames: int) ->
             phases[i] = (phases[i - 1][1], max(phases[i - 1][1] + 3, phases[i][1]))
 
     # Enforce minimum phase width (at least 5% of serve duration, min 8 frames)
-    min_phase_width = max(8, serve_duration // 20)
+    min_phase_width = max(dc["min_phase_width_floor"], serve_duration // dc["min_phase_width_divisor"])
     for i in range(len(phases)):
         s, e = phases[i]
         if e - s < min_phase_width:
@@ -821,107 +829,64 @@ def _generate_phase_commentary(phase_name: str, phase_scores: dict, baselines: d
     return "".join(comments)
 
 
-# ── Main pipeline ──────────────────────────────────────────────
+# ── Pure scoring pipeline (no video / model dependency) ───────
 
-def extract_and_analyze(
-    video_path: str,
+_NO_PERSON_ERROR = "Could not detect person in video. Please upload a clear video of a tennis player."
+
+
+def analyze_landmark_sequence(
+    frame_landmarks: list,
     baselines: dict,
-    output_dir: str,
+    total_frames: int | None = None,
+    cfg: dict | None = None,
 ) -> dict:
+    """Phase detection + scoring on an already-extracted landmark sequence.
+
+    ``frame_landmarks`` holds one entry per video frame: a list of 33
+    landmarks (dicts with x/y/z, or objects with .x/.y/.z), or an empty
+    list/None when no person was detected in that frame.  This is everything
+    that happens after MediaPipe, so it can be tested without a model.
     """
-    Full pipeline: extract pose from video, detect serve phases,
-    compute per-phase angles and scores, generate overlay video.
-
-    Returns dict matching TASK_SPEC format:
-        success, overall_score, phases[], overlay_video_url, total_frames
-    """
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        return {"success": False, "error": "Could not open video file."}
-
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # Prepare overlay video
-    os.makedirs(output_dir, exist_ok=True)
-    uid = uuid.uuid4().hex[:12]
-    overlay_filename = f"overlay_{uid}.mp4"
-    overlay_path = os.path.join(output_dir, overlay_filename)
+    cfg = cfg or CONFIG
+    if total_frames is None:
+        total_frames = len(frame_landmarks)
 
     all_frame_angles = []
-    all_frame_landmarks = []
-    all_frames_bgr = []
-    detected = 0
-    frame_idx = 0
     wrist_y_values = []
-    knee_angle_values = []  # for phase detection
+    knee_angle_values = []
+    detected = 0
 
-    # ── Single MediaPipe pass ──
-    with mp_pose.Pose(
-        static_image_mode=False,
-        model_complexity=2,
-        enable_segmentation=False,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    ) as pose:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb)
-
-            if results.pose_landmarks:
-                detected += 1
-                lm_list = results.pose_landmarks.landmark
-                wy = lm_list[R_WRIST].y if len(lm_list) > R_WRIST else 1.0
-                wrist_y_values.append(wy)
-
-                frame_lms = [{'x': lm.x, 'y': lm.y, 'z': lm.z} for lm in lm_list]
-                all_frame_landmarks.append(frame_lms)
-                all_frames_bgr.append(frame.copy())
-
-                # Compute angles for this frame
-                try:
-                    angles = compute_frame_angles(lm_list)
-                    all_frame_angles.append({'frame': frame_idx, 'angles': angles})
-                    knee_angle_values.append(angles.get('right_knee_flexion'))
-                except Exception:
-                    knee_angle_values.append(None)
-            else:
-                wrist_y_values.append(1.0)
+    for frame_idx, lm_list in enumerate(frame_landmarks):
+        if lm_list:
+            detected += 1
+            wy = _lm_coords(lm_list[R_WRIST])[1] if len(lm_list) > R_WRIST else 1.0
+            wrist_y_values.append(wy)
+            try:
+                angles = compute_frame_angles(lm_list)
+                all_frame_angles.append({'frame': frame_idx, 'angles': angles})
+                knee_angle_values.append(angles.get('right_knee_flexion'))
+            except Exception:
                 knee_angle_values.append(None)
-                all_frame_landmarks.append([])
-                all_frames_bgr.append(frame.copy())
-            frame_idx += 1
-
-    cap.release()
+        else:
+            wrist_y_values.append(1.0)
+            knee_angle_values.append(None)
 
     # Check detection rate
-    if total_frames == 0 or detected / total_frames < 0.3:
-        return {
-            "success": False,
-            "error": "Could not detect person in video. Please upload a clear video of a tennis player.",
-        }
+    if total_frames == 0 or detected / total_frames < cfg["detection"]["min_detection_rate"]:
+        return {"success": False, "error": _NO_PERSON_ERROR}
 
     if not all_frame_angles:
-        return {
-            "success": False,
-            "error": "Could not detect person in video. Please upload a clear video of a tennis player.",
-        }
+        return {"success": False, "error": _NO_PERSON_ERROR}
 
     # ── Detect phases ──
     wrist_arr = np.array(wrist_y_values)
-    phase_boundaries = _detect_phases(wrist_arr, knee_angle_values, total_frames)
+    phase_boundaries = _detect_phases(wrist_arr, knee_angle_values, total_frames, cfg)
 
     # ── Compute per-phase scores ──
+    sc = cfg["scoring"]
     phases_result = []
-    all_phase_severities = []
 
-    for i, (pdef, (start_f, end_f)) in enumerate(zip(PHASE_DEFS, phase_boundaries)):
+    for pdef, (start_f, end_f) in zip(PHASE_DEFS, phase_boundaries):
         # Gather angles for frames in this phase
         phase_angles_list = [
             fa['angles'] for fa in all_frame_angles
@@ -935,11 +900,10 @@ def extract_and_analyze(
                 "name_en": pdef["name_en"],
                 "start_frame": start_f,
                 "end_frame": end_f,
-                "score": 50,
+                "score": sc["empty_phase_score"],
                 "angles": {},
                 "commentary": f"{pdef['name']}阶段未检测到足够姿态数据。",
             })
-            all_phase_severities.append(0.5)
             continue
 
         # Average angles across phase
@@ -950,13 +914,12 @@ def extract_and_analyze(
                 avg_angles[key] = round(float(np.mean(vals)), 1)
 
         # Score against baselines
-        phase_scores = score_angles(avg_angles, baselines)
+        phase_scores = score_angles(avg_angles, baselines, cfg)
 
         # Phase score = 1 - mean severity, scaled to 0-100
         severities = [s['severity'] for s in phase_scores.values()]
-        phase_severity = float(np.mean(severities)) if severities else 0.5
+        phase_severity = float(np.mean(severities)) if severities else sc["empty_phase_severity"]
         phase_score = round((1 - phase_severity) * 100)
-        all_phase_severities.append(phase_severity)
 
         # Generate commentary
         commentary = _generate_phase_commentary(pdef["name"], phase_scores, baselines)
@@ -977,17 +940,94 @@ def extract_and_analyze(
     for pdef, phase_r in zip(PHASE_DEFS, phases_result):
         weighted_sum += pdef["weight"] * phase_r["score"]
         weight_total += pdef["weight"]
-    overall_score = round(weighted_sum / weight_total) if weight_total > 0 else 50
+    overall_score = round(weighted_sum / weight_total) if weight_total > 0 else sc["empty_phase_score"]
 
     # ── Build joint_scores for backward compatibility (use contact phase) ──
     contact_phase = phases_result[3] if len(phases_result) > 3 else phases_result[-1]
-    joint_scores = score_angles(contact_phase.get("angles", {}), baselines)
+    joint_scores = score_angles(contact_phase.get("angles", {}), baselines, cfg)
+    angle_comparison = _build_angle_comparison(contact_phase.get("angles", {}), baselines, cfg)
 
-    # ── Generate reference skeleton and angle comparison ──
+    return {
+        "success": True,
+        "overall_score": overall_score,
+        "phases": phases_result,
+        "phase_boundaries": phase_boundaries,
+        "joint_scores": joint_scores,
+        "detected_frames": detected,
+        "total_frames": total_frames,
+        "angle_comparison": angle_comparison,
+    }
+
+
+# ── Main pipeline ──────────────────────────────────────────────
+
+def extract_and_analyze(
+    video_path: str,
+    baselines: dict,
+    output_dir: str,
+) -> dict:
+    """
+    Full pipeline: extract pose from video, detect serve phases,
+    compute per-phase angles and scores, generate overlay video.
+
+    Returns dict matching TASK_SPEC format:
+        success, overall_score, phases[], overlay_video_url, total_frames
+    """
+    import cv2
+    import mediapipe as mp
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return {"success": False, "error": "Could not open video file."}
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Prepare overlay video
+    os.makedirs(output_dir, exist_ok=True)
+    uid = uuid.uuid4().hex[:12]
+    overlay_filename = f"overlay_{uid}.mp4"
+    overlay_path = os.path.join(output_dir, overlay_filename)
+
+    all_frame_landmarks = []
+    all_frames_bgr = []
+
+    # ── Single MediaPipe pass ──
+    with mp.solutions.pose.Pose(
+        static_image_mode=False,
+        model_complexity=2,
+        enable_segmentation=False,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5,
+    ) as pose:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(rgb)
+
+            if results.pose_landmarks:
+                lm_list = results.pose_landmarks.landmark
+                all_frame_landmarks.append([{'x': lm.x, 'y': lm.y, 'z': lm.z} for lm in lm_list])
+            else:
+                all_frame_landmarks.append([])
+            all_frames_bgr.append(frame.copy())
+
+    cap.release()
+
+    # ── Phase detection + scoring (pure computation) ──
+    analysis = analyze_landmark_sequence(all_frame_landmarks, baselines, total_frames)
+    if not analysis["success"]:
+        return analysis
+    phases_result = analysis.pop("phases")
+    phase_boundaries = analysis.pop("phase_boundaries")
+
+    # ── Generate reference skeleton ──
     reference_skeleton = _generate_reference_skeleton(baselines)
-    angle_comparison = _build_angle_comparison(
-        contact_phase.get("angles", {}), baselines
-    )
     # ── Generate overlay with phase coloring ──
     _redraw_overlay_phases(
         all_frame_landmarks, phases_result, phase_boundaries,
@@ -1011,15 +1051,15 @@ def extract_and_analyze(
 
     return {
         "success": True,
-        "overall_score": overall_score,
+        "overall_score": analysis["overall_score"],
         "phases": phases_result,
-        "joint_scores": joint_scores,  # backward compat
+        "joint_scores": analysis["joint_scores"],  # backward compat
         "overlay_video_path": overlay_path,
         "overlay_filename": overlay_filename,
-        "detected_frames": detected,
+        "detected_frames": analysis["detected_frames"],
         "total_frames": total_frames,
         "reference_skeleton": reference_skeleton,
-        "angle_comparison": angle_comparison,
+        "angle_comparison": analysis["angle_comparison"],
     }
 
 
@@ -1034,6 +1074,8 @@ def _redraw_overlay_phases(
     all_frames_bgr: list | None = None,
 ):
     """Draw skeleton overlay with phase-colored indicators."""
+    import cv2
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(overlay_path, fourcc, fps, (w, h))
 

@@ -1,0 +1,48 @@
+# Tennis Coach AI 默认配置。
+# 这里的数值与代码内置缺省值(app/settings.py 的 DEFAULTS)完全一致；
+# 想调参时复制本文件，通过环境变量 TENNIS_CONFIG=/path/to/my.toml 指定，
+# 只需写想覆盖的键，其余沿用缺省值。
+
+[scoring]
+# 偏差严重度 = |角度 - 专家均值| / (severity_std_multiplier * std)，上限 1.0
+severity_std_multiplier = 2.0
+# 严重度 < good_below 为 good；< moderate_below 为 moderate；否则 needs_work
+good_below = 0.30
+moderate_below = 0.60
+# 某阶段没有姿态数据时的占位得分与严重度
+empty_phase_score = 50
+empty_phase_severity = 0.5
+
+[phases]
+# 五阶段(准备/蓄力/加速/击球/随挥)的总分权重，按顺序
+weights = [0.10, 0.20, 0.25, 0.30, 0.15]
+
+[detection]
+# 检出人体的帧数占比低于该值则判定失败
+min_detection_rate = 0.3
+# 少于该帧数时不做分期，直接均分为五段
+min_frames_for_phases = 10
+# 手腕 y 轨迹平滑窗口 = max(smooth_min_window, n // smooth_divisor)
+smooth_min_window = 5
+smooth_divisor = 20
+# 寻找手腕最高点的搜索半径 = max(peak_search_min, n // peak_search_divisor)
+peak_search_min = 15
+peak_search_divisor = 30
+# 膝角缺失时的占位值
+knee_missing_default = 160.0
+# 膝盖下蹲幅度大于该角度(度)才认为发生了蓄力下蹲
+knee_min_drop = 5.0
+# 膝角下降到「起始角 - 降幅 * 该比例」时视为蓄力开始
+knee_loading_fraction = 0.3
+# 未检出下蹲时，蓄力开始位置默认在 serve 窗口的 1/loading_default_divisor 处
+loading_default_divisor = 4
+# 击球点：下落速度衰减到峰值的该比例时视为击球
+contact_decel_fraction = 0.35
+# 击球期半宽 = max(contact_half_width_min, 加速期时长 // contact_half_width_divisor)
+contact_half_width_min = 3
+contact_half_width_divisor = 5
+# 随挥期短于 serve 总长该比例时向前扩展
+followthrough_min_fraction = 0.05
+# 每段最小宽度 = max(min_phase_width_floor, serve 时长 // min_phase_width_divisor)
+min_phase_width_floor = 8
+min_phase_width_divisor = 20
