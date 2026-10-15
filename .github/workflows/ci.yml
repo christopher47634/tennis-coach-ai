@@ -26,3 +26,22 @@ jobs:
         run: python -m flake8
       - name: Test (pytest)
         run: python -m pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t tennis-coach-ai .
+      - name: Container starts, runs as non-root and answers /api/health
+        run: |
+          docker run -d --name tc -p 8000:8000 tennis-coach-ai
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/api/health && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/api/health
+          test "$(docker exec tc id -u)" != "0"
+          docker exec tc ffmpeg -version | head -1
+          docker logs tc

@@ -9,7 +9,10 @@ import pytest
 
 import pipeline
 import settings
-from helpers import load_fixture
+from angles import compute_frame_angles
+from helpers import FIXTURE_SIZE, load_fixture
+from phases import PhaseDetectionError, detect_phases
+from reference import generate_reference_skeleton
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINES_PATH = os.path.join(ROOT, "data", "expert_baselines.json")
@@ -38,15 +41,16 @@ def test_load_baselines_file_and_fallback(tmp_path):
     assert pipeline.load_baselines(str(tmp_path / "missing.json")) is pipeline.DEFAULT_BASELINES
 
 
-def test_too_few_frames_are_split_evenly():
-    phases = pipeline._detect_phases(np.linspace(0.5, 0.2, 8), [None] * 8, 8)
-    assert phases == [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+def test_too_few_frames_fail_explicitly():
+    with pytest.raises(PhaseDetectionError):
+        detect_phases(np.linspace(0.5, -0.5, 8), [np.nan] * 8, 30.0)
 
 
 def test_low_detection_rate_fails():
     frames = load_fixture("serve_base")
     sparse = [f if i % 10 == 0 else [] for i, f in enumerate(frames)]  # 10% detected
-    res = pipeline.analyze_landmark_sequence(sparse, pipeline.load_baselines(BASELINES_PATH))
+    res = pipeline.analyze_landmark_sequence(
+        sparse, pipeline.load_baselines(BASELINES_PATH), frame_size=FIXTURE_SIZE)
     assert res["success"] is False
 
 
@@ -54,9 +58,31 @@ def test_empty_input_fails():
     assert pipeline.analyze_landmark_sequence([], pipeline.DEFAULT_BASELINES)["success"] is False
 
 
-def test_reference_skeleton_shape():
-    sk = pipeline._generate_reference_skeleton(pipeline.DEFAULT_BASELINES)
+def test_reference_skeleton_angles_come_from_the_pose():
+    sk = generate_reference_skeleton()
     assert sk["total_frames"] == len(sk["frames"]) == 120
+    f = sk["frames"][0]
+    assert f["angles"] == {k: round(v, 1) for k, v in compute_frame_angles(f["landmarks"]).items()}
+
+
+def test_phase_baselines_cover_every_phase_and_joint():
+    pb = pipeline.load_phase_baselines(BASELINES_PATH)
+    for pdef in pipeline.PHASE_DEFS:
+        assert set(pb[pdef["name"]]) == set(pipeline.JOINT_NAMES), pdef["name"]
+
+
+def test_baselines_for_phase_falls_back_per_joint():
+    base = {"a": {"mean": 1, "std": 1}, "b": {"mean": 2, "std": 1}}
+    merged = pipeline.baselines_for_phase("p", base, {"p": {"b": {"mean": 9, "std": 1}}})
+    assert merged["a"]["mean"] == 1 and merged["b"]["mean"] == 9
+
+
+def test_commentary_distinguishes_knee_too_straight_from_too_deep():
+    scores = {"right_knee_flexion": {"value": 170, "expert_mean": 135, "severity": 1.0, "rating": "needs_work"}}
+    straight = pipeline._generate_phase_commentary("蓄力期", scores, {})
+    scores["right_knee_flexion"]["value"] = 90
+    deep = pipeline._generate_phase_commentary("蓄力期", scores, {})
+    assert "不足" in straight and "过深" in deep
 
 
 # ── configuration ──
@@ -99,3 +125,32 @@ def test_config_changes_rating():
     cfg["scoring"]["good_below"] = 0.9
     bl = {"j": {"mean": 100, "std": 10}}
     assert pipeline.score_angles({"j": 107}, bl, cfg)["j"]["rating"] == "good"
+
+
+# ── ffmpeg fallback ──
+
+def test_transcode_without_ffmpeg_logs_and_keeps_file(tmp_path, monkeypatch, caplog):
+    src = tmp_path / "o.mp4"
+    src.write_bytes(b"mp4v")
+    monkeypatch.setattr(pipeline.shutil, "which", lambda name: None)
+    assert pipeline._transcode_h264(str(src)) is False
+    assert src.read_bytes() == b"mp4v"
+    assert "ffmpeg not found" in caplog.text
+
+
+def test_transcode_failure_logs_and_removes_temp(tmp_path, monkeypatch, caplog):
+    src = tmp_path / "o.mp4"
+    src.write_bytes(b"mp4v")
+
+    class Proc:
+        returncode = 1
+        stderr = b"boom"
+
+    def fake_run(cmd, **kw):
+        (tmp_path / "o_h264.mp4").write_bytes(b"partial")
+        return Proc()
+    monkeypatch.setattr(pipeline.shutil, "which", lambda name: "ffmpeg")
+    monkeypatch.setattr(pipeline.subprocess, "run", fake_run)
+    assert pipeline._transcode_h264(str(src)) is False
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["o.mp4"]
+    assert "boom" in caplog.text

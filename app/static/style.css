@@ -508,3 +508,6 @@ body {
 .angle-item:nth-child(7) { animation-delay: 0.3s; }
 .angle-item:nth-child(8) { animation-delay: 0.35s; }
 .angle-item:nth-child(9) { animation-delay: 0.4s; }
+
+.phase-spacer { flex: none; }
+.analysis-warning { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--moderate, #ffaa00); }

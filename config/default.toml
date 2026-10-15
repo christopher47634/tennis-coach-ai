@@ -20,29 +20,39 @@ weights = [0.10, 0.20, 0.25, 0.30, 0.15]
 [detection]
 # 检出人体的帧数占比低于该值则判定失败
 min_detection_rate = 0.3
-# 少于该帧数时不做分期，直接均分为五段
-min_frames_for_phases = 10
-# 手腕 y 轨迹平滑窗口 = max(smooth_min_window, n // smooth_divisor)
-smooth_min_window = 5
-smooth_divisor = 20
-# 寻找手腕最高点的搜索半径 = max(peak_search_min, n // peak_search_divisor)
-peak_search_min = 15
-peak_search_divisor = 30
-# 膝角缺失时的占位值
-knee_missing_default = 160.0
+# 有效(检出)帧数少于该值时无法定位发球
+min_valid_frames = 15
+# 手腕高度曲线平滑窗口 = max(smooth_min_window, 帧率 * smooth_seconds) 帧；边缘不会被拉向 0
+smooth_seconds = 0.15
+smooth_min_window = 3
+# 手腕上举幅度(单位：躯干长度)低于该值判定为没有发球挥拍，显式报错
+min_prominence = 0.6
+# 手腕回落到「休息高度」的该比例即视为起势/收势的边界
+rest_fraction = 0.85
+# 未检出引拍下落时，加速期起点取起势到击球点的该比例处
+accel_fallback_fraction = 0.55
+# 未检出下蹲时，蓄力期起点取起势到加速期起点的该比例处
+loading_fallback_fraction = 0.4
 # 膝盖下蹲幅度大于该角度(度)才认为发生了蓄力下蹲
 knee_min_drop = 5.0
 # 膝角下降到「起始角 - 降幅 * 该比例」时视为蓄力开始
 knee_loading_fraction = 0.3
-# 未检出下蹲时，蓄力开始位置默认在 serve 窗口的 1/loading_default_divisor 处
-loading_default_divisor = 4
-# 击球点：下落速度衰减到峰值的该比例时视为击球
-contact_decel_fraction = 0.35
-# 击球期半宽 = max(contact_half_width_min, 加速期时长 // contact_half_width_divisor)
-contact_half_width_min = 3
-contact_half_width_divisor = 5
-# 随挥期短于 serve 总长该比例时向前扩展
-followthrough_min_fraction = 0.05
-# 每段最小宽度 = max(min_phase_width_floor, serve 时长 // min_phase_width_divisor)
-min_phase_width_floor = 8
-min_phase_width_divisor = 20
+# 击球期半宽 = max(contact_half_min, 上举时长 * contact_half_fraction)
+contact_half_min = 2
+contact_half_fraction = 0.1
+# 每个阶段最少帧数
+min_phase_frames = 2
+# 置信度低于该值时，结果带「低置信度」提示
+low_confidence_below = 0.5
+
+[limits]
+# 上传大小上限(MB)，写盘过程中即时拦截
+max_upload_mb = 200
+# 视频时长与分辨率上限
+max_duration_seconds = 120
+max_dimension = 4096
+# 同时分析的任务数；排队等待超时后返回 503
+max_concurrent_analyses = 2
+queue_timeout_seconds = 30
+# data/outputs 里的叠加视频保留多久(秒)
+output_ttl_seconds = 3600

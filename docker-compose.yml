@@ -4,5 +4,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data/outputs:/app/data/outputs
+      # overlay videos are temporary (deleted after limits.output_ttl_seconds)
+      - outputs:/app/data/outputs
     restart: unless-stopped
+
+volumes:
+  outputs:

@@ -1,14 +1,16 @@
 # Tennis Coach AI
 
-网球发球动作分析工具 — 上传视频，获得专业生物力学分析。
+网球发球动作分析工具 — 上传视频，用姿态估计（MediaPipe）提取关节角度，按规则模板给出分阶段的参考评分与建议。
+
+> 说明：评分对照的是经验估计的参考范围（`data/expert_baselines.json`，尚未用职业球员实测数据校准），评语是规则模板而非模型生成，结果仅供训练参考，不构成专业生物力学诊断。机位建议：固定机位、正面或背面、全身入镜、含完整发球。
 
 ## 功能
 
-- 自动识别发球5个阶段（准备→蓄力→加速→击球→随挥）
-- 每阶段独立评分 + 中文生物力学评语
+- 以「手腕最高点 = 击球点」向前反推识别发球5个阶段（准备→蓄力→加速→击球→随挥），输出置信度；找不到发球动作时明确报错
+- 每阶段按各自的参考范围评分 + 中文规则评语（自动识别左/右手持拍）
 - 骨架叠加视频（颜色标注关节偏离程度）
-- 职业球员参考骨架动画对比
-- 角度对比表（你的值 vs 职业标准）
+- 示意性的理想发球骨架动画对比
+- 角度对比表（你的值 vs 参考范围，击球阶段）
 
 ## 快速开始
 
@@ -30,14 +32,14 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ## 使用
 
 1. 上传网球发球视频（mp4等格式）
-2. 等待分析（约30-90秒）
+2. 等待分析（约30-90秒；上限 200MB、120 秒、4096px，同时最多分析 2 段，叠加视频 1 小时后自动删除）
 3. 查看评分、阶段分析、骨架对比
 
 ## 技术栈
 
 - Python + FastAPI
 - MediaPipe 0.10.14（姿态估计）
-- OpenCV（视频处理）
+- OpenCV（由 mediapipe 依赖带入，视频处理；请勿再装 opencv-python*）
 - 纯HTML/CSS/JS前端（无框架无CDN）
 
 ## 配置
@@ -54,7 +56,7 @@ TENNIS_CONFIG=/path/to/my.toml python -m uvicorn app.main:app
 ## 测试
 
 ```bash
-pip install -r requirements-dev.txt   # 仅 numpy / pytest / flake8，无需 mediapipe 与 opencv
+pip install -r requirements-dev.txt   # numpy / pytest / flake8 / fastapi / httpx，无需 mediapipe 与 opencv（姿态模型在测试中被替身代替）
 python -m flake8
 python -m pytest
 ```
@@ -62,4 +64,6 @@ python -m pytest
 回归测试不使用视频：`tests/fixtures/serve_*.json` 是合成的关键点序列（约 48KB），直接喂给
 `analyze_landmark_sequence()`，与 `expected_scores.json` 中锁定的得分、阶段边界、平均角度比对
 （容差：分数 1、角度 0.5、边界 2 帧）。有意修改评分逻辑后，运行
-`python tests/make_fixtures.py --golden` 查看新输出并手动更新期望值。姿态提取（MediaPipe）本身不在测试范围内。
+`python tests/make_fixtures.py --write-golden` 重写期望值。另有角度几何、阶段检测（慢放/空镜/缺帧）、上传接口（空文件 400、超限 413、非视频 422、异常文件名不 500）等测试。姿态提取（MediaPipe）本身不在测试范围内。
+
+依赖已锁定（`requirements.txt`，numpy<2）；Docker 镜像以非 root 运行并带 HEALTHCHECK，构建时预下载 pose 重模型权重；CI 会构建镜像并探测 `/api/health`。

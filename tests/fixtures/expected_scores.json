@@ -1,205 +1,205 @@
 {
   "_note": "Golden values for tests/fixtures/serve_*.json. Tolerances: scores 1, angles 0.5, boundaries 2 frames. Refresh deliberately (tests/make_fixtures.py --golden) only when scoring is meant to change.",
   "serve_base": {
-    "overall_score": 12,
+    "overall_score": 28,
     "phase_boundaries": [
       [
-        0,
-        37
+        46,
+        57
       ],
       [
-        37,
-        98
+        57,
+        74
       ],
       [
-        98,
-        114
+        74,
+        92
       ],
       [
-        114,
-        122
+        92,
+        103
       ],
       [
-        122,
-        150
+        103,
+        117
       ]
     ],
     "phases": [
       {
         "name": "准备期",
-        "score": 8,
+        "score": 67,
         "angles": {
-          "right_elbow_flexion": 170.6,
-          "left_elbow_flexion": 171.2,
-          "right_shoulder_abduction": 23.9,
-          "left_shoulder_abduction": 23.6,
-          "right_knee_flexion": 176.4,
-          "left_knee_flexion": 176.6,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.3,
-          "wrist_extension": 144.9
+          "right_elbow_flexion": 166.2,
+          "left_elbow_flexion": 165.4,
+          "right_shoulder_abduction": 37.4,
+          "left_shoulder_abduction": 32.0,
+          "right_knee_flexion": 162.5,
+          "left_knee_flexion": 162.3,
+          "trunk_lateral_tilt": 0.5,
+          "hip_shoulder_separation": 1.1,
+          "wrist_extension": 155.2
         }
       },
       {
         "name": "蓄力期",
-        "score": 16,
+        "score": 20,
         "angles": {
-          "right_elbow_flexion": 139.5,
-          "left_elbow_flexion": 164.4,
-          "right_shoulder_abduction": 91.1,
-          "left_shoulder_abduction": 32.5,
-          "right_knee_flexion": 167.7,
-          "left_knee_flexion": 167.9,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.8,
-          "wrist_extension": 129.9
+          "right_elbow_flexion": 131.0,
+          "left_elbow_flexion": 163.6,
+          "right_shoulder_abduction": 84.2,
+          "left_shoulder_abduction": 33.6,
+          "right_knee_flexion": 163.9,
+          "left_knee_flexion": 164.3,
+          "trunk_lateral_tilt": 0.6,
+          "hip_shoulder_separation": 1.5,
+          "wrist_extension": 123.1
         }
       },
       {
         "name": "加速期",
-        "score": 5,
+        "score": 15,
         "angles": {
-          "right_elbow_flexion": 71.1,
-          "left_elbow_flexion": 163.9,
-          "right_shoulder_abduction": 146.2,
-          "left_shoulder_abduction": 33.2,
-          "right_knee_flexion": 176.8,
-          "left_knee_flexion": 177.2,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.8,
-          "wrist_extension": 96.4
+          "right_elbow_flexion": 122.6,
+          "left_elbow_flexion": 163.1,
+          "right_shoulder_abduction": 144.1,
+          "left_shoulder_abduction": 34.1,
+          "right_knee_flexion": 170.3,
+          "left_knee_flexion": 170.8,
+          "trunk_lateral_tilt": 0.8,
+          "hip_shoulder_separation": 1.3,
+          "wrist_extension": 117.4
         }
       },
       {
         "name": "击球期",
-        "score": 15,
+        "score": 35,
         "angles": {
-          "right_elbow_flexion": 2.5,
-          "left_elbow_flexion": 164.9,
-          "right_shoulder_abduction": 157.2,
-          "left_shoulder_abduction": 32.5,
-          "right_knee_flexion": 176.7,
-          "left_knee_flexion": 176.9,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.6,
-          "wrist_extension": 161.3
+          "right_elbow_flexion": 120.2,
+          "left_elbow_flexion": 163.4,
+          "right_shoulder_abduction": 144.5,
+          "left_shoulder_abduction": 33.6,
+          "right_knee_flexion": 176.0,
+          "left_knee_flexion": 176.3,
+          "trunk_lateral_tilt": 0.5,
+          "hip_shoulder_separation": 0.9,
+          "wrist_extension": 115.3
         }
       },
       {
         "name": "随挥期",
-        "score": 13,
+        "score": 23,
         "angles": {
-          "right_elbow_flexion": 3.5,
-          "left_elbow_flexion": 164.8,
-          "right_shoulder_abduction": 159.6,
-          "left_shoulder_abduction": 32.3,
+          "right_elbow_flexion": 39.1,
+          "left_elbow_flexion": 164.0,
+          "right_shoulder_abduction": 148.6,
+          "left_shoulder_abduction": 33.1,
           "right_knee_flexion": 176.6,
-          "left_knee_flexion": 176.8,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.9,
-          "wrist_extension": 164.6
+          "left_knee_flexion": 177.1,
+          "trunk_lateral_tilt": 0.8,
+          "hip_shoulder_separation": 1.1,
+          "wrist_extension": 103.0
         }
       }
     ]
   },
   "serve_variant": {
-    "overall_score": 23,
+    "overall_score": 35,
     "phase_boundaries": [
       [
-        0,
-        37
+        45,
+        48
       ],
       [
-        37,
-        98
+        48,
+        75
       ],
       [
-        98,
-        115
+        75,
+        94
       ],
       [
-        115,
-        123
+        94,
+        107
       ],
       [
-        123,
-        150
+        107,
+        117
       ]
     ],
     "phases": [
       {
         "name": "准备期",
-        "score": 23,
+        "score": 63,
         "angles": {
-          "right_elbow_flexion": 153.4,
-          "left_elbow_flexion": 171.6,
-          "right_shoulder_abduction": 5.2,
-          "left_shoulder_abduction": 23.5,
-          "right_knee_flexion": 145.9,
-          "left_knee_flexion": 176.8,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 94.9,
-          "wrist_extension": 162.3
+          "right_elbow_flexion": 141.6,
+          "left_elbow_flexion": 166.6,
+          "right_shoulder_abduction": 6.2,
+          "left_shoulder_abduction": 29.9,
+          "right_knee_flexion": 133.5,
+          "left_knee_flexion": 167.1,
+          "trunk_lateral_tilt": 0.6,
+          "hip_shoulder_separation": 1.7,
+          "wrist_extension": 166.7
         }
       },
       {
         "name": "蓄力期",
-        "score": 34,
+        "score": 30,
         "angles": {
-          "right_elbow_flexion": 156.1,
+          "right_elbow_flexion": 142.1,
           "left_elbow_flexion": 164.5,
-          "right_shoulder_abduction": 87.4,
-          "left_shoulder_abduction": 32.5,
-          "right_knee_flexion": 136.1,
-          "left_knee_flexion": 167.8,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.7,
-          "wrist_extension": 163.5
+          "right_shoulder_abduction": 53.2,
+          "left_shoulder_abduction": 33.0,
+          "right_knee_flexion": 131.6,
+          "left_knee_flexion": 163.5,
+          "trunk_lateral_tilt": 0.5,
+          "hip_shoulder_separation": 0.9,
+          "wrist_extension": 169.1
         }
       },
       {
         "name": "加速期",
-        "score": 21,
+        "score": 27,
         "angles": {
-          "right_elbow_flexion": 109.5,
-          "left_elbow_flexion": 163.1,
-          "right_shoulder_abduction": 167.7,
-          "left_shoulder_abduction": 33.5,
-          "right_knee_flexion": 146.5,
-          "left_knee_flexion": 177.3,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.9,
-          "wrist_extension": 138.1
+          "right_elbow_flexion": 177.7,
+          "left_elbow_flexion": 162.7,
+          "right_shoulder_abduction": 167.4,
+          "left_shoulder_abduction": 34.2,
+          "right_knee_flexion": 139.5,
+          "left_knee_flexion": 170.9,
+          "trunk_lateral_tilt": 0.6,
+          "hip_shoulder_separation": 1.2,
+          "wrist_extension": 154.2
         }
       },
       {
         "name": "击球期",
-        "score": 20,
+        "score": 37,
         "angles": {
-          "right_elbow_flexion": 38.5,
-          "left_elbow_flexion": 165.0,
-          "right_shoulder_abduction": 152.0,
-          "left_shoulder_abduction": 32.2,
-          "right_knee_flexion": 146.3,
+          "right_elbow_flexion": 175.6,
+          "left_elbow_flexion": 162.7,
+          "right_shoulder_abduction": 162.8,
+          "left_shoulder_abduction": 33.9,
+          "right_knee_flexion": 146.2,
           "left_knee_flexion": 177.0,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 95.0,
-          "wrist_extension": 151.3
+          "trunk_lateral_tilt": 0.5,
+          "hip_shoulder_separation": 1.0,
+          "wrist_extension": 153.8
         }
       },
       {
         "name": "随挥期",
-        "score": 20,
+        "score": 32,
         "angles": {
-          "right_elbow_flexion": 42.3,
-          "left_elbow_flexion": 164.1,
-          "right_shoulder_abduction": 147.8,
-          "left_shoulder_abduction": 32.6,
-          "right_knee_flexion": 146.2,
+          "right_elbow_flexion": 34.5,
+          "left_elbow_flexion": 163.7,
+          "right_shoulder_abduction": 170.0,
+          "left_shoulder_abduction": 33.1,
+          "right_knee_flexion": 146.5,
           "left_knee_flexion": 177.0,
-          "trunk_lateral_tilt": 179.9,
-          "hip_shoulder_separation": 96.1,
-          "wrist_extension": 151.2
+          "trunk_lateral_tilt": 0.7,
+          "hip_shoulder_separation": 1.1,
+          "wrist_extension": 125.8
         }
       }
     ]

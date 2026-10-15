@@ -1,4 +1,7 @@
-# Lightweight deps for lint + tests (no mediapipe / opencv / fastapi needed)
+# Lightweight deps for lint + tests (no mediapipe / opencv needed: the pose model is stubbed)
 numpy
 pytest
 flake8
+fastapi
+httpx
+python-multipart

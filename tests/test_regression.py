@@ -7,11 +7,20 @@ import os
 import pytest
 
 import pipeline
-from helpers import FIXTURE_DIR, load_fixture
+from helpers import FIXTURE_DIR, FIXTURE_FPS, FIXTURE_SIZE, load_fixture
 from settings import DEFAULTS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASELINES = pipeline.load_baselines(os.path.join(ROOT, "data", "expert_baselines.json"))
+BASELINES_PATH = os.path.join(ROOT, "data", "expert_baselines.json")
+BASELINES = pipeline.load_baselines(BASELINES_PATH)
+PHASE_BASELINES = pipeline.load_phase_baselines(BASELINES_PATH)
+
+
+def analyze(name, cfg=None):
+    return pipeline.analyze_landmark_sequence(
+        load_fixture(name), BASELINES, cfg, frame_size=FIXTURE_SIZE, fps=FIXTURE_FPS,
+        phase_baselines=PHASE_BASELINES)
+
 
 with open(os.path.join(FIXTURE_DIR, "expected_scores.json"), encoding="utf-8") as f:
     EXPECTED = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
@@ -24,7 +33,7 @@ BOUNDARY_TOL = 2
 @pytest.fixture(scope="module", params=sorted(EXPECTED))
 def case(request):
     name = request.param
-    result = pipeline.analyze_landmark_sequence(load_fixture(name), BASELINES)
+    result = analyze(name)
     return name, result, EXPECTED[name]
 
 
@@ -63,7 +72,7 @@ def test_phase_boundaries(case):
 def test_phases_are_contiguous_and_ordered(case):
     _, result, _ = case
     bounds = result["phase_boundaries"]
-    assert bounds[0][0] == 0
+    assert bounds[0][0] >= 0 and bounds[-1][1] <= result["total_frames"]
     for (_, prev_end), (start, end) in zip(bounds, bounds[1:]):
         assert start == prev_end
         assert end > start
@@ -74,5 +83,5 @@ def test_scoring_drift_is_detected(case):
     name, _, expected = case
     cfg = copy.deepcopy(DEFAULTS)
     cfg["scoring"]["severity_std_multiplier"] = 3.0
-    drifted = pipeline.analyze_landmark_sequence(load_fixture(name), BASELINES, cfg=cfg)
+    drifted = analyze(name, cfg)
     assert abs(drifted["overall_score"] - expected["overall_score"]) > SCORE_TOL

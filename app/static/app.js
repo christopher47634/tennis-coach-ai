@@ -182,10 +182,14 @@
 
     try {
       var res = await fetch('/api/analyze', { method: 'POST', body: form });
-      var data = await res.json();
+      var data = {};
+      try { data = await res.json(); } catch (e) { data = {}; }
 
       if (!res.ok || data.error) {
-        showError(data.error || '分析失败，请重试。');
+        // FastAPI 的错误体是 {detail: "..."}；校验错误时 detail 可能是数组
+        var msg = data.detail || data.error;
+        if (Array.isArray(msg)) msg = msg.map(function (m) { return m.msg || ''; }).join('; ');
+        showError(msg || '分析失败，请重试。');
         return;
       }
       showResults(data);
@@ -207,6 +211,14 @@
     var score = data.overall_score || 0;
     var rating = getRating(score);
     animateScore(score, rating);
+
+    // --- 提示：低置信度 / 转码失败等 ---
+    var warnEl = document.getElementById('analysis-warning');
+    if (warnEl) {
+      var warns = data.warnings || [];
+      warnEl.textContent = warns.join(' ');
+      warnEl.classList.toggle('hidden', warns.length === 0);
+    }
 
     // --- 构建阶段时间轴 ---
     buildTimeline(data.phases || [], data.total_frames || 1);
@@ -299,6 +311,19 @@
 
     if (!phases.length) return;
 
+    // 五个阶段只覆盖发球动作本身，前后的空白镜头用占位撑开，保证和视频进度对齐
+    function addSpacer(frames) {
+      var pct = (frames / totalFrames) * 100;
+      if (pct <= 0) return;
+      [phaseTimeline, phaseLabels].forEach(function (host) {
+        var sp = document.createElement('div');
+        sp.className = 'phase-spacer';
+        sp.style.width = pct + '%';
+        host.appendChild(sp);
+      });
+    }
+    addSpacer(phases[0].start_frame);
+
     phases.forEach(function (phase, i) {
       var widthPct = ((phase.end_frame - phase.start_frame) / totalFrames) * 100;
       var seg = document.createElement('div');
@@ -333,6 +358,8 @@
       });
       phaseLabels.appendChild(label);
     });
+
+    addSpacer(totalFrames - phases[phases.length - 1].end_frame);
   }
 
   /* ========== 选中阶段 ========== */
