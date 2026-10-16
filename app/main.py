@@ -17,7 +17,7 @@ import sys
 import tempfile
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from housekeeping import OUTPUT_NAME_RE, cleanup_outputs
+from security import log_startup_config, rate_limit, require_token
 from pipeline import extract_and_analyze, load_baselines, load_phase_baselines
 from settings import CONFIG
 
@@ -128,6 +129,7 @@ class UploadSizeLimitMiddleware:
 
 @asynccontextmanager
 async def lifespan(_app):
+    log_startup_config()
     cleanup_outputs(OUTPUT_DIR, LIMITS["output_ttl_seconds"])
     yield
 
@@ -161,7 +163,7 @@ def _safe_suffix(filename: str) -> str | None:
 
 
 # ── Video analysis endpoint ──────────────────────────────────
-@app.post("/api/analyze")
+@app.post("/api/analyze", dependencies=[Depends(require_token), Depends(rate_limit)])
 async def analyze_video(video: UploadFile = File(...)):
     """Accept a video upload, run pose analysis, return scores + overlay URL."""
     if not video.filename:

@@ -181,7 +181,13 @@
     form.append('video', selectedFile);
 
     try {
-      var res = await fetch('/api/analyze', { method: 'POST', body: form });
+      var headers = {};
+      var token = null;
+      try {
+        token = new URLSearchParams(location.search).get('token') || localStorage.getItem('api_token');
+      } catch (e) { token = null; }
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      var res = await fetch('/api/analyze', { method: 'POST', body: form, headers: headers });
       var data = {};
       try { data = await res.json(); } catch (e) { data = {}; }
 

@@ -53,6 +53,25 @@ TENNIS_CONFIG=/path/to/my.toml python -m uvicorn app.main:app
 
 需要 Python 3.11+（使用标准库 `tomllib`）。
 
+### 访问控制与限流（环境变量）
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `API_TOKEN` | 未设置 | 设置后 `/api/analyze` 需要 `Authorization: Bearer <token>`（常量时间比较），否则 401；未设置则保持开放，启动日志会警告 |
+| `RATE_LIMIT_MAX` | `5` | 每个客户端 IP 在窗口内允许的分析次数，`0` 关闭限流 |
+| `RATE_LIMIT_WINDOW_SECONDS` | `600` | 滑动窗口长度（秒） |
+
+超限返回 429 并带 `Retry-After`；`/api/health` 不鉴权不限流。限流为进程内存实现（单 worker，重启清零）。
+客户端 IP 取直连地址；放在反向代理后面时用 `uvicorn --proxy-headers --forwarded-allow-ips=<代理IP>`。
+
+前端需要 token 时：访问 `http://host:8000/?token=<token>`，或在浏览器控制台执行
+`localStorage.setItem('api_token', '<token>')`。注意 URL 里的 token 会进浏览历史，仅适合个人使用。
+
+```bash
+API_TOKEN=secret RATE_LIMIT_MAX=10 docker compose up
+curl -H "Authorization: Bearer secret" -F video=@serve.mp4 http://localhost:8000/api/analyze
+```
+
 ## 测试
 
 ```bash

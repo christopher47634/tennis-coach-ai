@@ -6,6 +6,12 @@ services:
     volumes:
       # overlay videos are temporary (deleted after limits.output_ttl_seconds)
       - outputs:/app/data/outputs
+    environment:
+      # Optional: require "Authorization: Bearer <token>" on /api/analyze (open when empty).
+      API_TOKEN: ${API_TOKEN:-}
+      # Per-client-IP rate limit for /api/analyze (0 disables).
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-5}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-600}
     restart: unless-stopped
 
 volumes:

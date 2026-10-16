@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 import housekeeping
 import main
+import security
 
 client = TestClient(main.app)
 MB = 1024 * 1024
@@ -207,3 +208,59 @@ def test_cleanup_outputs_removes_only_expired_overlays(tmp_path):
 def test_frontend_reads_detail_field():
     js = open(os.path.join(main.STATIC_DIR, "app.js"), encoding="utf-8").read()
     assert "data.detail" in js
+
+
+# ── 限流与可选鉴权 ────────────────────────────────────────────
+@pytest.fixture
+def clean_security(monkeypatch):
+    for name in ("API_TOKEN", "RATE_LIMIT_MAX", "RATE_LIMIT_WINDOW_SECONDS"):
+        monkeypatch.delenv(name, raising=False)
+    security.reset_rate_limit()
+    yield monkeypatch
+    security.reset_rate_limit()
+
+
+def test_rate_limit_6th_request_is_429(stub, clean_security):
+    for _ in range(5):
+        assert _post().status_code == 200
+    r = _post()
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) >= 1
+
+
+def test_rate_limit_recovers_after_window(stub, clean_security):
+    clean_security.setenv("RATE_LIMIT_MAX", "2")
+    clean_security.setenv("RATE_LIMIT_WINDOW_SECONDS", "60")
+    now = [1000.0]
+    clean_security.setattr(security.time, "monotonic", lambda: now[0])
+    assert _post().status_code == 200
+    assert _post().status_code == 200
+    assert _post().status_code == 429
+    now[0] += 61
+    assert _post().status_code == 200
+
+
+def test_health_is_not_rate_limited(stub, clean_security):
+    clean_security.setenv("RATE_LIMIT_MAX", "1")
+    for _ in range(20):
+        assert client.get("/api/health").status_code == 200
+
+
+def test_token_missing_or_wrong_is_401(stub, clean_security):
+    clean_security.setenv("API_TOKEN", "s3cret")
+    assert _post().status_code == 401
+    r = client.post("/api/analyze", files={"video": ("a.mp4", b"x", "video/mp4")},
+                    headers={"Authorization": "Bearer wrong"})
+    assert r.status_code == 401
+    assert "path" not in stub
+
+
+def test_token_correct_passes(stub, clean_security):
+    clean_security.setenv("API_TOKEN", "s3cret")
+    r = client.post("/api/analyze", files={"video": ("a.mp4", b"xx", "video/mp4")},
+                    headers={"Authorization": "Bearer s3cret"})
+    assert r.status_code == 200
+
+
+def test_no_token_configured_is_open(stub, clean_security):
+    assert _post().status_code == 200

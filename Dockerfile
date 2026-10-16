@@ -29,6 +29,8 @@ RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser data
 USER appuser
 
+# Optional runtime env (pass with -e / compose): API_TOKEN (Bearer auth on /api/analyze),
+# RATE_LIMIT_MAX (default 5), RATE_LIMIT_WINDOW_SECONDS (default 600). See README.
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
