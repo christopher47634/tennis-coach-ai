@@ -245,7 +245,11 @@ async def serve_output(filename: str):
     filepath = os.path.join(OUTPUT_DIR, filename)
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=404, detail="File not found.")
-    return FileResponse(filepath, media_type="video/mp4")
+    return FileResponse(
+        filepath,
+        media_type="video/mp4",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 # ── Static files (frontend) ─────────────────────────────────

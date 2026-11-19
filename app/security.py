@@ -79,9 +79,14 @@ def rate_limit(request: Request) -> None:
     ip = request.client.host if request.client else "unknown"
     now = time.monotonic()
     with _lock:
-        if len(_hits) > _MAX_TRACKED_IPS:      # drop idle entries so the table cannot grow forever
+        if len(_hits) >= _MAX_TRACKED_IPS and ip not in _hits:
             for key in [k for k, q in _hits.items() if not q or now - q[-1] >= window]:
                 del _hits[key]
+            # Even under a distributed flood where all tracked IPs are still active,
+            # evict the oldest entries so memory remains strictly bounded.
+            while len(_hits) >= _MAX_TRACKED_IPS:
+                oldest = next(iter(_hits))
+                del _hits[oldest]
         q = _hits.setdefault(ip, deque())
         while q and now - q[0] >= window:
             q.popleft()
